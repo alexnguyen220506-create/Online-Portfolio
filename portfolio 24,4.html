@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TUAN ANH NGUYEN | SYSTEM.PORTFOLIO</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=JetBrains+Mono:wght@400;700;800&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg: #000000;
+            --fg: #ffffff;
+            --font-mono: 'JetBrains Mono', monospace;
+            --font-sans: 'Inter', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            cursor: crosshair;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            background-color: var(--bg);
+            color: var(--fg);
+            overflow: hidden; 
+            -webkit-font-smoothing: antialiased;
+        }
+        
+        body.is-dragging, body.is-dragging * {
+            cursor: grabbing !important;
+        }
+
+        /* CRT OVERLAY */
+        .crt-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), 
+                        linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            z-index: 999;
+            pointer-events: none;
+            opacity: 0.2;
+        }
+
+        #core-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            z-index: 0;
+        }
+
+        /* HUD ELEMENTS (Z-index 10 to stay behind panels) */
+        .hud-element {
+            position: absolute;
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            z-index: 10;
+        }
+        .hud-top-left { top: 20px; left: 20px; }
+        #audio-toggle { cursor: pointer; text-decoration: underline; opacity: 0.5; transition: opacity 0.2s; pointer-events: auto; }
+        #audio-toggle:hover { opacity: 1; background: var(--fg); color: var(--bg); }
+
+        .hud-theme-toggle { top: 60px; left: 20px; }
+        #theme-toggle { cursor: pointer; text-decoration: underline; opacity: 0.5; transition: opacity 0.2s; pointer-events: auto; }
+        #theme-toggle:hover { opacity: 1; background: var(--fg); color: var(--bg); }
+
+        .hud-top-right { top: 20px; right: 20px; text-align: right; }
+        .hud-weather { top: 60px; right: 20px; text-align: right; opacity: 0.7; }
+        .hud-bottom-right { bottom: 35px; right: 20px; text-align: right; }
+        
+        /* FULL WIDTH INFINITE LOOP DATA TICKER */
+        .hud-bottom-ticker { 
+            position: absolute;
+            bottom: 0px; left: 0; width: 100vw; 
+            overflow: hidden; white-space: nowrap; 
+            font-family: var(--font-mono);
+            font-size: 0.7rem; letter-spacing: 0.15em;
+            color: var(--fg); opacity: 0.6;
+            z-index: 10; pointer-events: none;
+            padding: 8px 0;
+            background: var(--bg);
+        }
+        .ticker-track {
+            display: inline-block;
+            white-space: nowrap;
+            animation: tickerScroll 40s linear infinite;
+        }
+        .ticker-track span {
+            padding-right: 50px;
+        }
+        @keyframes tickerScroll {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-50%); }
+        }
+
+        .hud-crosshair {
+            position: absolute;
+            width: 20px; height: 20px;
+            z-index: 10;
+        }
+        .hud-crosshair::before, .hud-crosshair::after {
+            content: ''; position: absolute; background: var(--fg);
+        }
+        .hud-crosshair::before { width: 100%; height: 1px; top: 9px; left: 0; }
+        .hud-crosshair::after { height: 100%; width: 1px; left: 9px; top: 0; }
+        .ch-tl { top: 40px; left: 40px; }
+        .ch-tr { top: 40px; right: 40px; }
+        .ch-bl { bottom: 50px; left: 40px; }
+        .ch-br { bottom: 50px; right: 40px; }
+
+        /* HERO TITLE */
+        .hero {
+            position: absolute;
+            top: 60px; left: 50%;
+            transform: translateX(-50%);
+            text-align: center;
+            z-index: 10;
+            width: 100%;
+        }
+        .hero h1 {
+            font-family: var(--font-mono);
+            font-size: 6vw;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            line-height: 1;
+        }
+        .hero p {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            margin-top: 10px;
+            border: 1px solid var(--fg);
+            display: inline-block;
+            padding: 6px 18px;
+            letter-spacing: 0.3em;
+            background: var(--bg);
+        }
+
+        /* ORBITING NAVIGATION */
+        .nav-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 20;
+            pointer-events: none;
+        }
+        
+        .nav-item {
+            position: absolute;
+            pointer-events: auto;
+            text-decoration: none;
+            color: var(--fg);
+            background: var(--bg);
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 1.4rem;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            white-space: nowrap;
+            transition: all 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+            padding: 8px 18px;
+            border: 1px solid transparent;
+        }
+
+        .nav-item:hover {
+            color: var(--bg);
+            background: var(--fg);
+            border: 1px solid var(--fg);
+            transform: translate(-50%, -50%) scale(1.1) skewX(-5deg) !important;
+        }
+
+        /* P5 EASTER EGG (HORSE) - 1.2s */
+        .easter-egg-container {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 95;
+            pointer-events: none;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .easter-egg-active { display: flex; }
+        .horse-shape {
+            width: 45vw;
+            min-width: 350px;
+        }
+        .easter-egg-dash .horse-shape { animation: horseDash 1.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards; }
+        @keyframes horseDash {
+            0% { transform: translateX(-120vw) translateY(10vh) skewX(-30deg) scale(1.3); }
+            40% { transform: translateX(0) translateY(0) skewX(-5deg) scale(1); }
+            60% { transform: translateX(0) translateY(0) skewX(-5deg) scale(1); }
+            100% { transform: translateX(120vw) translateY(-10vh) skewX(25deg) scale(0.7); }
+        }
+        .easter-egg-drop .horse-shape { animation: horseDrop 1.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards; }
+        @keyframes horseDrop {
+            0% { transform: translateY(-120vh) scale(1, 1.4); }
+            40% { transform: translateY(5vh) scale(1.4, 0.6); }
+            60% { transform: translateY(0) scale(1, 1); }
+            80% { transform: translateY(0) scale(1, 1); }
+            100% { transform: translateY(120vh) scale(0.8, 1.6); }
+        }
+        .easter-egg-drop .speed-trails { display: none; }
+
+        /* WIPE LAYERS */
+        .wipe-container { position: fixed; z-index: 90; pointer-events: none; display: flex; }
+        .wipe-slash { top: -25vh; left: -25vw; width: 150vw; height: 150vh; flex-direction: column; transform: rotate(-15deg); }
+        .wipe-slash .slash { flex: 1; background: var(--fg); transform: scaleX(0); transform-origin: left; transition: transform 0.5s cubic-bezier(0.85, 0, 0.15, 1); border-bottom: 2px solid var(--bg); }
+        .wipe-slash.wipe-active .slash { transform: scaleX(1); }
+        .wipe-slash .slash:nth-child(2) { transition-delay: 0.08s; }
+        .wipe-slash .slash:nth-child(3) { transition-delay: 0.16s; }
+        .wipe-slash .slash:nth-child(4) { transition-delay: 0.24s; }
+        .wipe-slash .slash:nth-child(5) { transition-delay: 0.32s; }
+
+        .wipe-blinds { top: 0; left: 0; width: 100vw; height: 100vh; flex-direction: column; }
+        .wipe-blinds .blind { flex: 1; background: var(--fg); transform: scaleX(0); transform-origin: right; transition: transform 0.4s cubic-bezier(0.85, 0, 0.15, 1); border-bottom: 4px solid var(--bg); }
+        .wipe-blinds.wipe-active .blind { transform: scaleX(1); }
+        .wipe-blinds .blind:nth-child(2) { transition-delay: 0.1s; }
+        .wipe-blinds .blind:nth-child(4) { transition-delay: 0.2s; }
+
+        .wipe-quad { top: 0; left: 0; width: 100vw; height: 100vh; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; gap: 4px; }
+        .wipe-quad .quad { background: var(--fg); transform: scale(0); transition: transform 0.6s cubic-bezier(0.85, 0, 0.15, 1); }
+        .wipe-quad.wipe-active .quad { transform: scale(1); }
+
+        .wipe-crush { top: 0; left: 0; width: 100vw; height: 100vh; flex-direction: row; }
+        .wipe-crush .pillar { flex: 1; background: var(--fg); transform: scaleY(0); transition: transform 0.5s cubic-bezier(0.85, 0, 0.15, 1); border-right: 2px solid var(--bg); }
+        .wipe-crush.wipe-active .pillar { transform: scaleY(1); }
+
+        /* CONTENT */
+        .content-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: var(--bg);
+            z-index: 50;
+            display: none;
+            padding: 60px;
+            flex-direction: column;
+            border: 12px solid var(--fg);
+        }
+        .content-active { display: flex; }
+
+        .content-header { border-bottom: 2px solid var(--fg); padding-bottom: 20px; margin-bottom: 30px; display: flex; justify-content: space-between; align-items: flex-end; }
+        .content-title { font-family: var(--font-mono); font-size: 3.5rem; text-transform: uppercase; line-height: 0.9; }
+        .btn-close { background: transparent; color: var(--fg); border: 2px solid var(--fg); font-family: var(--font-mono); padding: 10px 25px; font-weight: bold; pointer-events: auto; }
+        .btn-close:hover { background: var(--fg); color: var(--bg); }
+
+        .content-body {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding-right: 20px;
+            scrollbar-width: none; 
+        }
+        .content-body::-webkit-scrollbar { display: none; }
+
+        .grid-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 2px; background: var(--fg); border: 2px solid var(--fg); }
+        .grid-cell { background: var(--bg); padding: 25px; display: flex; flex-direction: column;}
+        .cell-title { font-family: var(--font-mono); font-size: 0.8rem; border-bottom: 1px solid var(--fg); margin-bottom: 15px; display: inline-block; align-self: flex-start; }
+        .cell-content { font-family: var(--font-sans); font-size: 1rem; line-height: 1.5; }
+
+        .term-list { list-style: none; font-family: var(--font-mono); font-size: 0.9rem; }
+        .term-list li { margin-bottom: 25px; }
+        .term-list .role { font-weight: 700; color: var(--fg); display: block; margin-top: 5px; margin-bottom: 4px; font-size: 1.1rem;}
+        .term-list .date { opacity: 0.6; font-size: 0.8rem; letter-spacing: 0.1em; }
+        .term-list p { font-family: var(--font-sans); color: #ccc; line-height: 1.5; margin-bottom: 5px; }
+
+        /* EXPANDABLE SKILL MATRIX */
+        .skill-matrix { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); 
+            gap: 15px; 
+            align-items: start;
+        }
+        .skill-block { 
+            border: 1px solid var(--fg); 
+            padding: 15px; 
+            cursor: pointer; 
+            transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+            background: var(--bg);
+            color: var(--fg);
+        }
+        .skill-block:hover { 
+            background: rgba(255,255,255,0.1); 
+            transform: translateY(-2px);
+        }
+        .skill-block h4 { 
+            background: var(--fg); color: var(--bg); 
+            font-family: var(--font-mono); padding: 2px 8px; 
+            font-size: 0.8rem; margin-bottom: 10px; display: inline-block; 
+            transition: all 0.3s;
+        }
+        .skill-summary {
+            font-family: var(--font-sans); font-size: 0.9rem; line-height: 1.4;
+        }
+        .skill-details {
+            display: none;
+            margin-top: 15px; 
+            font-family: var(--font-sans); font-size: 0.95rem; line-height: 1.6;
+            border-top: 1px solid currentColor; padding-top: 15px;
+        }
+        
+        /* Expanded State Classes */
+        .skill-block.expanded {
+            grid-column: 1 / -1;
+            background: var(--fg);
+            color: var(--bg);
+            transform: translateY(0);
+        }
+        .skill-block.expanded h4 {
+            background: var(--bg);
+            color: var(--fg);
+        }
+        .skill-block.expanded .skill-details {
+            display: block;
+            animation: fadeIn 0.4s ease forwards;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .btn-extract {
+            background: transparent; color: var(--fg);
+            border: 2px solid var(--fg); font-family: var(--font-mono);
+            font-size: 1rem; padding: 15px 30px;
+            font-weight: bold; display: inline-block;
+            margin-top: 30px; text-decoration: none;
+            transition: all 0.2s; pointer-events: auto;
+            text-align: center; width: 100%;
+        }
+        .btn-extract:hover {
+            background: var(--fg); color: var(--bg);
+            transform: translateY(-2px);
+        }
+
+        /* Utilities */
+        .blinking-cursor::after {
+            content: '█';
+            animation: blink 1s step-start infinite;
+            margin-left: 5px;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 8vw; }
+            .grid-layout { grid-template-columns: 1fr; }
+            .content-overlay { padding: 20px; border-width: 6px; }
+            .content-title { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="crt-overlay"></div>
+
+    <div class="hud-element hud-top-left">SYS.STATUS: ONLINE<br>AUDIO: <span id="audio-toggle">OFF</span></div>
+    <div class="hud-element hud-theme-toggle">THEME: <span id="theme-toggle">WHT</span></div>
+    
+    <div class="hud-element hud-top-right" id="sys-clock">00:00:00<br>SYS.CLK</div>
+    <div class="hud-element hud-weather" id="sys-weather">WTHR: --°C<br>LAPPEENRANTA</div>
+    
+    <div class="hud-element hud-bottom-right">AUTH: T.A.NGUYEN<br>CREDITS: 78 ECTS</div>
+    
+    <div class="hud-bottom-ticker">
+        <div class="ticker-track">
+            <span>> 2ND-YEAR ENERGY TECH | MATLAB | SIMULINK | PYTHON | SUSTAINABILITY | RSRCH | DATA MGT | CALIBRATION | 78 ECTS | LUT UNIVERSITY | PHEXANH | ALLUVIA | HOMER PRO | SYSTEMS INFORMATICS | C++ | AWAITING INPUT <</span>
+            <span>> 2ND-YEAR ENERGY TECH | MATLAB | SIMULINK | PYTHON | SUSTAINABILITY | RSRCH | DATA MGT | CALIBRATION | 78 ECTS | LUT UNIVERSITY | PHEXANH | ALLUVIA | HOMER PRO | SYSTEMS INFORMATICS | C++ | AWAITING INPUT <</span>
+        </div>
+    </div>
+    
+    <div class="hud-crosshair ch-tl"></div>
+    <div class="hud-crosshair ch-tr"></div>
+    <div class="hud-crosshair ch-bl"></div>
+    <div class="hud-crosshair ch-br"></div>
+
+    <header class="hero">
+        <h1>TUAN ANH NGUYEN</h1>
+        <p>SYSTEM.PORTFOLIO</p>
+    </header>
+
+    <canvas id="core-canvas"></canvas>
+
+    <nav class="nav-container" id="nav-container">
+        <a href="#" class="nav-item" id="nav-profile" data-target="panel-profile" data-wipe="wipe-slash"><span>[01]</span> PROFILE</a>
+        <a href="#" class="nav-item" id="nav-experience" data-target="panel-experience" data-wipe="wipe-blinds"><span>[02]</span> EXPERIENCE</a>
+        <a href="#" class="nav-item" id="nav-expertise" data-target="panel-expertise" data-wipe="wipe-quad"><span>[03]</span> EXPERTISE</a>
+        <a href="#" class="nav-item" id="nav-projects" data-target="panel-projects" data-wipe="wipe-crush"><span>[04]</span> PROJECTS</a>
+        <a href="#" class="nav-item" id="nav-contact" data-target="panel-contact" data-wipe="wipe-slash"><span>[05]</span> CONTACT</a>
+    </nav>
+
+    <div class="wipe-container wipe-slash" id="wipe-slash"><div class="slash"></div><div class="slash"></div><div class="slash"></div><div class="slash"></div><div class="slash"></div></div>
+    <div class="wipe-container wipe-blinds" id="wipe-blinds"><div class="blind"></div><div class="blind"></div><div class="blind"></div><div class="blind"></div><div class="blind"></div><div class="blind"></div></div>
+    <div class="wipe-container wipe-quad" id="wipe-quad"><div class="quad"></div><div class="quad"></div><div class="quad"></div><div class="quad"></div></div>
+    <div class="wipe-container wipe-crush" id="wipe-crush"><div class="pillar"></div><div class="pillar"></div><div class="pillar"></div><div class="pillar"></div><div class="pillar"></div><div class="pillar"></div><div class="pillar"></div></div>
+
+    <div class="easter-egg-container" id="easter-egg">
+        <svg class="horse-shape" viewBox="0 0 100 100">
+            <path d="M75,20 L85,25 L78,40 L65,40 L60,55 L85,65 L80,90 L70,90 L75,70 L55,70 L50,95 L40,95 L45,75 L30,65 L15,85 L10,80 L25,55 L15,40 L30,50 L45,45 L60,25 Z" fill="var(--bg)"/>
+            <polygon points="76,26 78,28 75,30" fill="var(--fg)"/>
+            <g class="speed-trails">
+                <rect x="-200" y="60" width="220" height="3" fill="var(--bg)"/>
+                <rect x="-150" y="45" width="160" height="1.5" fill="var(--bg)"/>
+                <rect x="-100" y="80" width="110" height="1.5" fill="var(--bg)"/>
+            </g>
+        </svg>
+    </div>
+
+    <!-- CONTENT OVERLAYS -->
+    <section class="content-overlay" id="panel-profile">
+        <div class="content-header">
+            <h2 class="content-title" data-title="System.Profile">System.Profile<span class="blinking-cursor"></span></h2>
+            <button class="btn-close" onclick="closePanel()">RETURN</button>
+        </div>
+        <div class="content-body">
+            <div class="grid-layout">
+                <div class="grid-cell">
+                    <span class="cell-title">PARAMETERS</span>
+                    <ul class="term-list">
+                        <li>> STATUS: 2ND-YEAR B.SC</li>
+                        <li>> CREDITS: 78 ECTS</li>
+                        <li>> FIELD: ENERGY TECHNOLOGY</li>
+                        <li>> UNIVERSITY: LUT UNIVERSITY</li>
+                    </ul>
+                    <div style="margin-top: auto;">
+                        <a href="Anh Tuan Nguyen CV.pdf" target="_blank" download class="btn-extract">[ EXTRACT PDF RECORD ]</a>
+                    </div>
+                </div>
+                <div class="grid-cell">
+                    <span class="cell-title">TECHNICAL SUMMARY</span>
+                    <div class="cell-content">
+                        <p>2nd-year Energy Technology student with 78 ECTS credits. Specialized in sustainable energy systems with a strong foundation in laboratory measurement, calibration, and high-accuracy data management.</p>
+                        <br>
+                        <p>My approach is methodical, combining rigorous data structures with high-efficiency modeling. Committed to optimizing resource utilization and supporting the global energy transition.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-overlay" id="panel-experience">
+        <div class="content-header">
+            <h2 class="content-title" data-title="Experience.Log">Experience.Log</h2>
+            <button class="btn-close" onclick="closePanel()">RETURN</button>
+        </div>
+        <div class="content-body">
+            <div class="grid-layout" style="grid-template-columns: 1fr;">
+                <div class="grid-cell">
+                    <ul class="term-list">
+                        <li>
+                            <span class="date">[ MAY 2025 - AUG 2025 ]</span>
+                            <span class="role">DATA COLLECTION TRAINEE | ALLUVIA CHOCOLATE VIETNAM</span>
+                            <p>Managed high-stakes sales data and market prediction directly under the team Lead. Ensured 100% data accuracy for financial modeling and executive analysis. Collaborated with lead analysts to organize and categorize high-volume corporate datasets.</p>
+                        </li>
+                        <li>
+                            <span class="date">[ MAR 2024 - AUG 2024 ]</span>
+                            <span class="role">WEB PROJECT CONTRIBUTOR | PHEXANH</span>
+                            <p>Managed digital workflows and project tasks focused on optimizing sustainable resource utilization. Leveraged familiarity with sustainability concepts and the energy transition to support project goals.</p>
+                        </li>
+                        <li>
+                            <span class="date">[ PREVIOUS ]</span>
+                            <span class="role">TA INSTRUCTOR & TEAM LEAD</span>
+                            <p>Managed a team of two teachers and coordinated curricula. Translated complex concepts for diverse groups. Managed schedules and progress tracking in a team-oriented, international environment. Achieved high percentages of students scoring above course averages.</p>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-overlay" id="panel-expertise">
+        <div class="content-header">
+            <h2 class="content-title" data-title="Expertise.Matrix">Expertise.Matrix</h2>
+            <button class="btn-close" onclick="closePanel()">RETURN</button>
+        </div>
+        <div class="content-body">
+            <div class="skill-matrix">
+                <div class="skill-block" onclick="toggleSkill(this)">
+                    <h4>DATA WRANGLING</h4>
+                    <div class="skill-summary">
+                        > Python, R<br>> MATLAB<br>> Advanced Excel
+                    </div>
+                    <div class="skill-details">
+                        <p><strong>Architect of robust data pipelines.</strong> Capable of extracting, sanitizing, and transforming high-volume, erratic raw inputs into pristine datasets. Utilizing Python, R, and advanced Excel frameworks, I ensure zero-fault tolerance for critical financial forecasting and rigorous engineering models.</p>
+                    </div>
+                </div>
+
+                <div class="skill-block" onclick="toggleSkill(this)">
+                    <h4>TECH MODELING</h4>
+                    <div class="skill-summary">
+                        > MATLAB<br>> Simulink<br>> HOMER Pro
+                    </div>
+                    <div class="skill-details">
+                        <p><strong>Advanced simulation specialist.</strong> Highly proficient in utilizing MATLAB, Simulink, and HOMER Pro to construct high-fidelity digital twins of sustainable energy grids. Capable of executing rigorous stress tests, performance calibrations, and renewable resource optimization algorithms.</p>
+                    </div>
+                </div>
+
+                <div class="skill-block" onclick="toggleSkill(this)">
+                    <h4>DOCUMENTATION</h4>
+                    <div class="skill-summary">
+                        > LaTeX<br>> Overleaf<br>> MS Office Suite
+                    </div>
+                    <div class="skill-details">
+                        <p><strong>Precision-driven technical writer.</strong> Leveraging LaTeX and Overleaf to produce immaculate, publication-ready research reports and mathematical formatting. Adept at translating highly technical energy concepts into clear, standardized documentation that adheres to strict academic and corporate compliance.</p>
+                    </div>
+                </div>
+
+                <div class="skill-block" onclick="toggleSkill(this)">
+                    <h4>SOFT SKILLS</h4>
+                    <div class="skill-summary">
+                        > Project Management<br>> Communication<br>> Reliability & Planning
+                    </div>
+                    <div class="skill-details">
+                        <p><strong>Strategic team orchestrator.</strong> Combines methodical workflow tracking (via MS Project) with uncompromising reliability and adaptive planning. Proven history of cross-cultural communication and leadership, successfully driving complex international team initiatives to completion ahead of schedule.</p>
+                    </div>
+                </div>
+
+                <div class="skill-block" onclick="toggleSkill(this)">
+                    <h4>LANGUAGES</h4>
+                    <div class="skill-summary">
+                        > Vietnamese (Native)<br>> English (Fluent)<br>> Mandarin (Conv.)<br>> Finnish (Elem.)
+                    </div>
+                    <div class="skill-details">
+                        <p><strong>Multilingual communicator.</strong> Equipped to bridge cultural gaps and coordinate seamlessly within diverse, global engineering environments. Fluent in bridging English technical terminology with local execution, fostering collaboration across varying geographic operational hubs.</p>
+                    </div>
+                </div>
+
+                <div class="skill-block" onclick="toggleSkill(this)">
+                    <h4>AI INTEGRATION</h4>
+                    <div class="skill-summary">
+                        > Workflow Automation<br>> Applied LLMs<br>> Algorithmic Design
+                    </div>
+                    <div class="skill-details">
+                        <p><strong>Forward-thinking AI application.</strong> Adept at integrating advanced AI models to solve complex macro-scale engineering problems. I strategically leverage artificial intelligence to exponentially increase operational efficiency across research, teaching, software development, structural building, and algorithmic design.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    
+    <section class="content-overlay" id="panel-projects">
+        <div class="content-header">
+            <h2 class="content-title" data-title="Project.Archive">Project.Archive</h2>
+            <button class="btn-close" onclick="closePanel()">RETURN</button>
+        </div>
+        <div class="content-body">
+            <div class="grid-layout" style="grid-template-columns: 1fr;">
+                <div class="grid-cell">
+                    <ul class="term-list">
+                        <li>
+                            <span class="date">[ RECENT ]</span>
+                            <span class="role">SOLCAST TERMINAL - Residential Solar PV Forecasting App</span>
+                            <p>A rigorous engineering Python CLI application combining physical modeling with statistical forecasting. Predicts solar array energy output at hourly and daily resolutions (with confidence intervals) using real-time open weather APIs.</p>
+                            <br>
+                            <p>> <strong>Architecture:</strong> 5 decoupled layers including hardware configuration via frozen dataclasses, swappable weather ingestion pipelines (Open-Meteo, PVGIS, Erbs 1982), and a robust physics engine (NREL SPA, Perez 1990, Sandia King, PVWatts).</p>
+                            <p>> <strong>Forecasting:</strong> Deterministic physics on NWP weather integrated with an XGBoost quantile regression model trained on 10+ years of synthetic PVGIS irradiance data for P10/P50/P90 bounds.</p>
+                            <p>> <strong>Interface:</strong> CRT-style terminal built on Rich, featuring phosphor-green telemetry and Unicode distribution whisker plots.</p>
+                            <p>> <strong>Validation:</strong> Verified via a Pytest regression suite against pvlib's Ineichen clear-sky reference model at astronomical extremes.</p>
+                            <br>
+                            <p><a href="#" target="_blank" style="color: var(--fg); text-decoration: underline;">[ GITHUB REPOSITORY LINK PENDING ]</a></p>
+                        </li>
+                        <li>
+                            <span class="date">[ 2024 ]</span>
+                            <span class="role">PHEXANH - Circular Economy Web Platform</span>
+                            <p>Collaborated on a startup project developing a web platform dedicated to resource efficiency and circular economy principles. Applied core concepts aligning directly with the research focus of the LUT School of Energy Systems to produce a working prototype website and data collection model.</p>
+                        </li>
+                        <li>
+                            <span class="date">[ 2025 ]</span>
+                            <span class="role">ALLUVIA - Predictive Financial Modeling Data Pipeline</span>
+                            <p>Structured and categorized high-volume corporate sales datasets. Resolved massive inconsistencies within the raw data pool to provide the analyst team with strictly verified data suitable for advanced predictive market modeling.</p>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="content-overlay" id="panel-contact">
+        <div class="content-header">
+            <h2 class="content-title" data-title="Comm.Link">Comm.Link</h2>
+            <button class="btn-close" onclick="closePanel()">RETURN</button>
+        </div>
+        <div class="content-body">
+            <div class="grid-layout">
+                <div class="grid-cell">
+                    <span class="cell-title">DIRECTIVES</span>
+                    <div class="cell-content">
+                        <p><a href="mailto:tuan.an.nguyen@student.lut.fi" style="color:var(--fg); text-decoration:none;">> EMAIL: tuan.an.nguyen@student.lut.fi</a></p>
+                        <br>
+                        <p>> TEL: +358 417245880</p>
+                        <p>> ADDR: Korpraalinkuja 3 212</p>
+                        <p>> LOC: LAPPEENRANTA, FINLAND</p>
+                        <br>
+                        <p>> REF: Doan Thi Cam Chau<br>
+                           &nbsp;&nbsp;[Alluvia Supervisor]<br>
+                           &nbsp;&nbsp;TEL: +84918689007<br>
+                           &nbsp;&nbsp;EML: camchaudoan@gmail.com
+                        </p>
+                    </div>
+                </div>
+                <div class="grid-cell" style="display:flex; justify-content:center; align-items:center; text-align:center;">
+                    <p style="font-family: var(--font-mono); opacity:0.5;">[ AWAITING INPUT ]<br><span class="blinking-cursor"></span></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script>
+        // --- DECRYPTION TEXT EFFECT ---
+        function scrambleText(element, originalText) {
+            const chars = '!<>-_\\\\/[]{}—=+*^?#________';
+            let iterations = 0;
+            const maxIterations = 20;
+            clearInterval(element.scrambleInterval);
+            
+            element.scrambleInterval = setInterval(() => {
+                element.innerText = originalText.split('').map((char, index) => {
+                    if (char === ' ') return ' ';
+                    if (index < iterations / (maxIterations / originalText.length)) {
+                        return originalText[index];
+                    }
+                    return chars[Math.floor(Math.random() * chars.length)];
+                }).join('');
+                
+                iterations++;
+                if (iterations >= maxIterations) {
+                    clearInterval(element.scrambleInterval);
+                    element.innerText = originalText;
+                    if(originalText === "System.Profile") element.innerHTML = "System.Profile<span class=\"blinking-cursor\"></span>";
+                }
+            }, 30);
+        }
+
+        // --- LIVE WEATHER FETCH ---
+        async function fetchWeather() {
+            try {
+                const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=61.0587&longitude=28.1887&current_weather=true');
+                const data = await res.json();
+                const temp = data.current_weather.temperature;
+                document.getElementById('sys-weather').innerHTML = `WTHR: ${temp}°C<br>LAPPEENRANTA`;
+            } catch (e) {
+                document.getElementById('sys-weather').innerHTML = `WTHR: ERR<br>LAPPEENRANTA`;
+            }
+        }
+        fetchWeather();
+        setInterval(fetchWeather, 600000);
+
+        // --- THEME TOGGLE LOGIC ---
+        const themes = [
+            { name: 'WHT', color: '#ffffff', rgb: '255,255,255' },
+            { name: 'GRN', color: '#00ff41', rgb: '0,255,65' },
+            { name: 'AMB', color: '#ffb000', rgb: '255,176,0' }
+        ];
+        let currentTheme = 0;
+        let currentRGB = themes[0].rgb;
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            currentTheme = (currentTheme + 1) % themes.length;
+            document.documentElement.style.setProperty('--fg', themes[currentTheme].color);
+            document.getElementById('theme-toggle').innerText = themes[currentTheme].name;
+            currentRGB = themes[currentTheme].rgb;
+            if(typeof SoundEngine !== 'undefined') SoundEngine.tick();
+        });
+
+        // --- SKILL MATRIX TOGGLE LOGIC ---
+        function toggleSkill(element) {
+            document.querySelectorAll('.skill-block').forEach(block => {
+                if (block !== element) block.classList.remove('expanded');
+            });
+            element.classList.toggle('expanded');
+            if (typeof SoundEngine !== 'undefined') SoundEngine.tick();
+        }
+
+        // --- REFINED PROFESSIONAL SOUND ENGINE ---
+        const SoundEngine = (() => {
+            let audioCtx = null;
+            let enabled = false;
+
+            const init = () => {
+                if (audioCtx) return;
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                enabled = true;
+            };
+
+            const toggle = () => {
+                if (!audioCtx) init();
+                enabled = !enabled;
+                document.getElementById('audio-toggle').innerText = enabled ? 'ON' : 'OFF';
+            };
+
+            const tactileClick = () => {
+                if (!enabled || !audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                const filter = audioCtx.createBiquadFilter();
+                
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1500, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + 0.05);
+
+                filter.type = 'highpass';
+                filter.frequency.setValueAtTime(1000, audioCtx.currentTime);
+
+                gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
+
+                osc.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.05);
+            };
+
+            const pneumaticSweep = () => {
+                if (!enabled || !audioCtx) return;
+                const bufferSize = audioCtx.sampleRate * 0.2;
+                const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+                const data = buffer.getChannelData(0);
+                for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+                const source = audioCtx.createBufferSource();
+                source.buffer = buffer;
+
+                const filter = audioCtx.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(2000, audioCtx.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.2);
+
+                const gain = audioCtx.createGain();
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+
+                source.connect(filter);
+                filter.connect(gain);
+                gain.connect(audioCtx.destination);
+                source.start();
+            };
+
+            const deepPulse = () => {
+                if (!enabled || !audioCtx) return;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(60, audioCtx.currentTime);
+                gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.3);
+            };
+
+            return {
+                init, toggle,
+                tick: tactileClick,
+                confirm: pneumaticSweep,
+                transitionPulse: deepPulse
+            };
+        })();
+
+        document.getElementById('audio-toggle').addEventListener('click', SoundEngine.toggle);
+        document.body.addEventListener('click', () => SoundEngine.init(), { once: true });
+
+        // --- 1. SLOW MORPHING PHYSICS GEOMETRY ---
+        const canvas = document.getElementById('core-canvas');
+        const ctx = canvas.getContext('2d');
+        const numPoints = 64; 
+        const navItems = document.querySelectorAll('.nav-item');
+        
+        let width, height, currentNodes = [], shapes = [], activeWipeId = null, activePanel = null, isTransitioning = false;
+        let rotX = 0, rotY = 0, rotZ = 0, targetRotX = 0, targetRotY = 0;
+        let isHovering = false, morphSpeed = 0.02, currentShapeIndex = 0, orbitAngle = 0;
+        const idleSequence = [7, 0, 7, 1, 7, 2, 7, 3, 7, 4, 7, 5, 7, 6];
+        let seqIndex = 0;
+        let clickEffects = [];
+
+        let dragRotX = 0, dragRotY = 0;
+        let isDragging = false, isDragMoved = false;
+        let dragStartX = 0, dragStartY = 0, lastMouseX = 0, lastMouseY = 0;
+        let cycleTimer = 0, lastFrameTime = Date.now();
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('sys-clock').innerHTML = now.toLocaleTimeString('en-GB', { hour12: false }) + '<br>SYS.CLK';
+            setTimeout(updateClock, 1000);
+        }
+        updateClock();
+
+        function resize() {
+            width = window.innerWidth; height = window.innerHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize); resize();
+
+        window.addEventListener('mousemove', e => { 
+            targetRotY = ((e.clientX / width) - 0.5) * 0.5; 
+            targetRotX = ((e.clientY / height) - 0.5) * 0.5; 
+            
+            if (isDragging) {
+                let dx = e.clientX - lastMouseX;
+                let dy = e.clientY - lastMouseY;
+                if (Math.hypot(e.clientX - dragStartX, e.clientY - dragStartY) > 5) {
+                    isDragMoved = true;
+                }
+                dragRotX += dy * 0.006; 
+                dragRotY += dx * 0.006;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            }
+        });
+
+        window.addEventListener('mousedown', (e) => {
+            if (e.target.closest('.nav-item') || e.target.closest('button') || e.target.closest('.content-overlay') || e.target.closest('.skill-block') || e.target.closest('.btn-extract') || e.target.id === 'audio-toggle' || e.target.id === 'theme-toggle') return;
+            
+            isDragging = true;
+            isDragMoved = false;
+            dragStartX = e.clientX;
+            dragStartY = e.clientY;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            document.body.classList.add('is-dragging');
+        });
+
+        window.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                isDragging = false;
+                document.body.classList.remove('is-dragging');
+                
+                if (!isDragMoved) {
+                    SoundEngine.tick();
+                    for(let i=0; i<3; i++) {
+                        clickEffects.push({ x: e.clientX + (Math.random()-0.5)*20, y: e.clientY + (Math.random()-0.5)*20, life: 1.0, type: Math.floor(Math.random() * 20), rot: Math.random() * Math.PI * 2, rotSpeed: (Math.random() - 0.5) * 0.1, scale: Math.random() * 8 + 4 });
+                    }
+                }
+            }
+        });
+
+        function generateStars(scale) {
+            let pts = []; for(let i=0; i<numPoints; i++) { let r = scale * (0.6 + Math.random() * 2.4); let t = Math.random() * Math.PI * 2, p = Math.acos(Math.random() * 2 - 1); pts.push({x: r * Math.sin(p) * Math.cos(t), y: r * Math.sin(p) * Math.sin(t), z: r * Math.cos(p)}); } return pts;
+        }
+
+        function generateShapes(scale) {
+            let s = [];
+            let atom = [];
+            for(let i=0; i<10; i++) { let r=scale*0.2, p=Math.acos(Math.random()*2-1), t=Math.random()*Math.PI*2; atom.push({x:r*Math.sin(p)*Math.cos(t), y:r*Math.sin(p)*Math.sin(t), z:r*Math.cos(p)}); }
+            for(let i=0; i<18; i++) { let a=(i/18)*Math.PI*2; atom.push({x:Math.cos(a)*scale*1.4, y:Math.sin(a)*scale*1.4, z:0}); }
+            for(let i=0; i<18; i++) { let a=(i/18)*Math.PI*2; let y=Math.sin(a)*scale*1.4; atom.push({x:Math.cos(a)*scale*1.4, y:y*0.5, z:y*0.866}); } 
+            for(let i=0; i<18; i++) { let a=(i/18)*Math.PI*2; let y=Math.sin(a)*scale*1.4; atom.push({x:Math.cos(a)*scale*1.4, y:-y*0.5, z:y*0.866}); } 
+            s.push(atom);
+            let torus = [];
+            for(let i=0; i<numPoints; i++) { let u = (i%8)/8 * Math.PI*2; let v = Math.floor(i/8)/8 * Math.PI*2; let R = scale*1.1, r = scale*0.45; torus.push({x: (R+r*Math.cos(u))*Math.cos(v), y: (R+r*Math.cos(u))*Math.sin(v), z: r*Math.sin(u)}); }
+            s.push(torus);
+            let inf = [];
+            for(let i=0; i<numPoints; i++) { let t = (i/numPoints)*Math.PI*2; inf.push({x: scale*1.6*Math.sin(t), y: scale*0.8*Math.sin(2*t), z: scale*0.8*Math.cos(2*t)}); }
+            s.push(inf);
+            let dipole = [];
+            for(let i=0; i<numPoints; i++) { let seg = i%8, line = Math.floor(i/8); let t = (seg/7)*Math.PI, a = (line/8)*Math.PI*2; let r = scale*1.4*Math.sin(t); dipole.push({x: Math.cos(a)*r, y: scale*1.3*Math.cos(t), z: Math.sin(a)*r}); }
+            s.push(dipole);
+            let dna = [];
+            for(let i=0; i<32; i++) { let t = (i/31)*Math.PI*3; let y = (i/31 - 0.5)*scale*2.5; dna.push({x: Math.cos(t)*scale*0.8, y: y, z: Math.sin(t)*scale*0.8}); }
+            for(let i=0; i<32; i++) { let t = (i/31)*Math.PI*3 + Math.PI; let y = (i/31 - 0.5)*scale*2.5; dna.push({x: Math.cos(t)*scale*0.8, y: y, z: Math.sin(t)*scale*0.8}); }
+            s.push(dna);
+            let wave = [];
+            for(let i=0; i<numPoints; i++) { let x = (i%8)-3.5, z = Math.floor(i/8)-3.5; let d = Math.hypot(x, z); wave.push({x: x*scale*0.35, y: Math.sin(d)*scale*0.4, z: z*scale*0.35}); }
+            s.push(wave);
+            let diamond = [];
+            for(let i=0; i<numPoints; i++) { if(i<16) diamond.push({x:0, y:scale*1.8, z:0}); else if(i<32) diamond.push({x:0, y:-scale*1.8, z:0}); else { let a = ((i-32)/32)*Math.PI*2; diamond.push({x: Math.cos(a)*scale*1.3, y:0, z: Math.sin(a)*scale*1.3}); } }
+            s.push(diamond);
+            s.push(generateStars(scale));
+
+            let sphere = []; const phi = Math.PI * (3 - Math.sqrt(5));
+            for(let i=0; i<numPoints; i++) { let y = 1 - (i / (numPoints - 1)) * 2, r = Math.sqrt(1 - y*y), t = phi * i; sphere.push({x: Math.cos(t)*r*scale, y: y*scale, z: Math.sin(t)*r*scale}); }
+            let eye = sphere.map((p,i) => i<numPoints/3?{x:Math.cos(i/(numPoints/3)*Math.PI*2)*scale*0.3, y:Math.sin(i/(numPoints/3)*Math.PI*2)*scale*0.3, z:scale*0.2} : i<numPoints*2/3?{x:((i-numPoints/3)/(numPoints/3)-0.5)*scale*2.5, y:Math.sin((i-numPoints/3)/(numPoints/3)*Math.PI)*scale*0.8, z:0} : {x:((i-numPoints*2/3)/(numPoints/3)-0.5)*scale*2.5, y:-Math.sin((i-numPoints*2/3)/(numPoints/3)*Math.PI)*scale*0.8, z:0});
+            s.push(eye);
+            let hg = sphere.map((p,i) => i<numPoints/3?{x:Math.cos(i/(numPoints/3)*Math.PI*2)*scale, y:-scale*0.8, z:Math.sin(i/(numPoints/3)*Math.PI*2)*scale} : i<numPoints*2/3?{x:Math.cos(i/(numPoints/3)*Math.PI*2)*scale, y:scale*0.8, z:Math.sin(i/(numPoints/3)*Math.PI*2)*scale} : {x:Math.cos(i/(numPoints/3)*Math.PI*2+Math.PI/16)*scale*0.1, y:0, z:Math.sin(i/(numPoints/3)*Math.PI*2+Math.PI/16)*scale*0.1});
+            s.push(hg);
+            let db = sphere.map((p,i) => { let layer=i<numPoints/3?-1:i<numPoints*2/3?0:1, t=(i%(numPoints/3))/(numPoints/3)*Math.PI*2; return {x:Math.cos(t)*scale*0.9, y:layer*scale*0.8, z:Math.sin(t)*scale*0.9}; });
+            s.push(db);
+            let excl = []; let mainCount = Math.floor(numPoints*0.75); let dotCount = numPoints - mainCount;
+            for(let l=0; l<mainCount/4; l++){ let t=l/(mainCount/4), y=-scale*0.9+t*scale*1.3, w=scale*0.25*(1-t*0.6); excl.push({x:w,y:y,z:w},{x:-w,y:y,z:w},{x:-w,y:y,z:-w},{x:w,y:y,z:-w}); }
+            for(let i=0; i<dotCount; i++){ let a=(i/dotCount)*Math.PI*2, y=scale*0.85, r=scale*0.15; excl.push({x:Math.cos(a)*r, y:y+(i%2?0.01:-0.01), z:Math.sin(a)*r}); }
+            while(excl.length < numPoints) excl.push({...excl[excl.length-1]});
+            s.push(excl);
+
+            return s;
+        }
+
+        shapes = generateShapes(200); for(let i=0; i<numPoints; i++) currentNodes.push({...shapes[0][i]});
+
+        function animate() {
+            let now = Date.now();
+            let dt = now - lastFrameTime;
+            lastFrameTime = now;
+
+            if (!isHovering && !activePanel && !isDragging && !isTransitioning) {
+                cycleTimer += dt;
+                if (cycleTimer > 4500) {
+                    cycleTimer = 0;
+                    seqIndex = (seqIndex + 1) % idleSequence.length;
+                    currentShapeIndex = idleSequence[seqIndex];
+                    if (currentShapeIndex === 7) shapes[7] = generateStars(200);
+                }
+            } else { cycleTimer = 0; }
+
+            ctx.clearRect(0,0,width,height);
+            orbitAngle += isHovering ? 0.0002 : 0.0008;
+            let rx = width*0.4, ry = height*0.28, centerY = height*0.55;
+            
+            navItems.forEach((item, i) => { 
+                let angle = orbitAngle + (i/navItems.length)*Math.PI*2; 
+                item.style.left = width/2 + Math.cos(angle)*rx + 'px'; 
+                item.style.top = centerY + Math.sin(angle)*ry + 'px'; 
+                item.style.transform = 'translate(-50%,-50%)'; 
+            });
+            
+            dragRotX = dragRotX % (Math.PI * 2); if (dragRotX > Math.PI) dragRotX -= Math.PI * 2; if (dragRotX < -Math.PI) dragRotX += Math.PI * 2;
+            dragRotY = dragRotY % (Math.PI * 2); if (dragRotY > Math.PI) dragRotY -= Math.PI * 2; if (dragRotY < -Math.PI) dragRotY += Math.PI * 2;
+            rotZ = rotZ % (Math.PI * 2); if (rotZ > Math.PI) rotZ -= Math.PI * 2; if (rotZ < -Math.PI) rotZ += Math.PI * 2;
+
+            if (isDragging) {
+                rotX += (targetRotX + dragRotX - rotX) * 0.2; rotY += (targetRotY + dragRotY - rotY) * 0.2;
+            } else if (isHovering) {
+                dragRotX += (0 - dragRotX) * 0.1; dragRotY += (0 - dragRotY) * 0.1;
+                rotX += (targetRotX * 0.4 + dragRotX - rotX) * 0.1; rotY += (targetRotY * 0.4 + dragRotY - rotY) * 0.1; rotZ += (0 - rotZ) * 0.1;
+            } else {
+                rotX += (targetRotX + dragRotX - rotX) * 0.05 + 0.001; 
+                rotY += (targetRotY + dragRotY - rotY) * 0.05 + 0.0015; 
+                rotZ += 0.0005;
+            }
+
+            let target = shapes[currentShapeIndex];
+            let projected = currentNodes.map((n, i) => { n.x += (target[i].x-n.x)*morphSpeed; n.y += (target[i].y-n.y)*morphSpeed; n.z += (target[i].z-n.z)*morphSpeed; let x1=n.x*Math.cos(rotZ)-n.y*Math.sin(rotZ), y1=n.x*Math.sin(rotZ)+n.y*Math.cos(rotZ); let y2=y1*Math.cos(rotX)-n.z*Math.sin(rotX), z1=y1*Math.sin(rotX)+n.z*Math.cos(rotX); let x2=x1*Math.cos(rotY)+z1*Math.sin(rotY), z2=-x1*Math.sin(rotY)+z1*Math.cos(rotY); let sc = 600/(600+z2); return {x:x2*sc+width/2, y:y2*sc+centerY, z:z2}; });
+            ctx.lineWidth = 1.5; let connectDist = (currentShapeIndex === 7) ? 120 : 180;
+            for(let i=0; i<projected.length; i++){ for(let j=i+1; j<projected.length; j++){ let d = Math.hypot(projected[i].x-projected[j].x, projected[i].y-projected[j].y); if(d < connectDist){ ctx.strokeStyle = `rgba(${currentRGB},${(1-d/connectDist)*Math.max(0,(projected[i].z+projected[j].z+400)/800)})`; ctx.beginPath(); ctx.moveTo(projected[i].x, projected[i].y); ctx.lineTo(projected[j].x, projected[j].y); ctx.stroke(); } } ctx.fillStyle = themes[currentTheme].color; ctx.fillRect(projected[i].x-1.5, projected[i].y-1.5, 3, 3); }
+            clickEffects.forEach((eff, i) => { eff.life -= 0.02; if(eff.life<=0) return clickEffects.splice(i,1); eff.rot += eff.rotSpeed; ctx.save(); ctx.translate(eff.x, eff.y); ctx.rotate(eff.rot); let s = eff.scale*(0.8+eff.life*0.2); ctx.scale(s,s); ctx.strokeStyle=`rgba(${currentRGB},${eff.life})`; ctx.lineWidth = 1/s; ctx.beginPath(); let t=eff.type; if(t<5){ctx.moveTo(-1,0);ctx.lineTo(1,0);ctx.moveTo(0,-.5);ctx.lineTo(0,.5);} else if(t<10){ctx.moveTo(-.5,-.5);ctx.lineTo(.5,.5);ctx.moveTo(-.5,.5);ctx.lineTo(.5,-.5);} else if(t<15){ctx.moveTo(-1,-1);ctx.lineTo(1,-1);ctx.lineTo(1,1);} else {ctx.moveTo(0,-1);ctx.lineTo(1,1);ctx.lineTo(-1,1);ctx.closePath();} ctx.stroke(); ctx.restore(); });
+            requestAnimationFrame(animate);
+        }
+
+        const wipes = {
+            'wipe-slash': { in: () => document.querySelectorAll('#wipe-slash .slash').forEach(e=>e.style.transformOrigin='left'), out: () => document.querySelectorAll('#wipe-slash .slash').forEach(e=>e.style.transformOrigin='right')},
+            'wipe-blinds': { in: () => document.querySelectorAll('#wipe-blinds .blind').forEach(e=>e.style.transformOrigin='right'), out: () => document.querySelectorAll('#wipe-blinds .blind').forEach(e=>e.style.transformOrigin='left')},
+            'wipe-quad': { in:()=>{}, out:()=>{} },
+            'wipe-crush': { in: () => document.querySelectorAll('#wipe-crush .pillar').forEach((e,i)=>e.style.transformOrigin=i%2?'bottom':'top'), out: () => document.querySelectorAll('#wipe-crush .pillar').forEach((e,i)=>e.style.transformOrigin=i%2?'top':'bottom')}
+        };
+        const shapeMap = {'nav-profile':8, 'nav-experience':9, 'nav-expertise':10, 'nav-projects':5, 'nav-contact':11};
+        navItems.forEach(item => {
+            item.addEventListener('mouseenter', () => { SoundEngine.tick(); currentShapeIndex=shapeMap[item.id]; isHovering=true; morphSpeed=0.08; });
+            item.addEventListener('mouseleave', () => { isHovering=false; currentShapeIndex=idleSequence[seqIndex]; morphSpeed=0.02; });
+            item.addEventListener('click', e => { e.preventDefault(); openPanel(item.dataset.target, item.dataset.wipe); });
+        });
+        function triggerEgg() {
+            const egg = document.getElementById('easter-egg'); egg.className = 'easter-egg-container easter-egg-active ' + (Math.random()>0.5?'easter-egg-dash':'easter-egg-drop');
+            setTimeout(() => { SoundEngine.transitionPulse(); }, 100); setTimeout(() => egg.classList.remove('easter-egg-active'), 1200);
+        }
+        function openPanel(id, wipe) {
+            if(activePanel || isTransitioning) return; 
+            isTransitioning = true;
+            activeWipeId = wipe; triggerEgg(); SoundEngine.confirm();
+            const el = document.getElementById(wipe); wipes[wipe].in(); el.classList.add('wipe-active');
+            setTimeout(() => { 
+                document.getElementById('nav-container').style.opacity = '0'; 
+                activePanel = document.getElementById(id); 
+                activePanel.classList.add('content-active'); 
+                wipes[wipe].out(); 
+                el.classList.remove('wipe-active'); 
+                isTransitioning = false;
+                
+                const titleEl = activePanel.querySelector('.content-title');
+                if(titleEl && titleEl.dataset.title) scrambleText(titleEl, titleEl.dataset.title);
+            }, 900);
+        }
+        function closePanel() {
+            if(!activePanel || isTransitioning) return; 
+            isTransitioning = true;
+            triggerEgg(); SoundEngine.confirm();
+            const wipeId = activeWipeId;
+            const panel = activePanel;
+            const el = document.getElementById(wipeId); 
+            wipes[wipeId].out(); 
+            el.classList.add('wipe-active');
+            
+            document.querySelectorAll('.skill-block.expanded').forEach(block => block.classList.remove('expanded'));
+            
+            setTimeout(() => { 
+                panel.classList.remove('content-active'); 
+                document.getElementById('nav-container').style.opacity = '1'; 
+                activePanel = null; 
+                wipes[wipeId].in(); 
+                el.classList.remove('wipe-active'); 
+                isTransitioning = false;
+            }, 900);
+        }
+        animate();
+    </script>
+</body>
+</html>
